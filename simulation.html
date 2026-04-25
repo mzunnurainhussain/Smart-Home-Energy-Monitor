@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>NILM Simulation — Smart Energy Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--surface2:#1e242e;--surface3:#252d38;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --accent:#00b478;--accent2:#00ffa3;--navy:#0a2240;
+  --red:#e24b4a;--blue:#378add;--amber:#ba7517;--purple:#534ab7;
+  --radius:12px;--radius-sm:8px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* TOPBAR */
+.topbar{background:linear-gradient(90deg,#0a2240,#0d1a2e);border-bottom:1px solid var(--border2);padding:0 28px;display:flex;align-items:center;justify-content:space-between;height:54px;}
+.topbar-brand{display:flex;align-items:center;gap:10px;}
+.pulse{width:10px;height:10px;border-radius:50%;background:var(--accent);position:relative;}
+.pulse::after{content:'';position:absolute;inset:-4px;border-radius:50%;border:1.5px solid var(--accent);animation:pulseRing 1.8s infinite;}
+@keyframes pulseRing{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(2)}}
+.topbar-title{font-size:15px;font-weight:700;color:#fff;letter-spacing:-0.3px;}
+.topbar-sub{font-size:11px;color:rgba(255,255,255,0.4);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.badge{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:0.5px;}
+.badge-green{background:rgba(0,180,120,0.15);color:var(--accent);border:1px solid rgba(0,180,120,0.3);}
+.badge-blue{background:rgba(55,138,221,0.15);color:#85b7eb;border:1px solid rgba(55,138,221,0.3);}
+
+/* LAYOUT */
+.layout{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 54px);}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);padding:20px 16px;overflow-y:auto;}
+.main{padding:20px 22px;overflow-y:auto;}
+
+/* SIDEBAR */
+.sidebar-section{margin-bottom:22px;}
+.sidebar-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:10px;}
+.appliance-item{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s;}
+.appliance-item:hover{border-color:var(--border2);}
+.appliance-item.active-item{border-color:var(--accent);background:rgba(0,180,120,0.06);}
+.app-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.app-name-row{display:flex;align-items:center;gap:8px;}
+.app-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.app-name{font-size:13px;font-weight:600;color:var(--text);}
+.toggle{width:36px;height:20px;border-radius:10px;position:relative;cursor:pointer;transition:background 0.2s;flex-shrink:0;}
+.toggle.on{background:var(--accent);}
+.toggle.off{background:var(--surface3);}
+.toggle::after{content:'';position:absolute;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left 0.2s;}
+.toggle.on::after{left:19px;}
+.toggle.off::after{left:3px;}
+.app-stats{display:flex;gap:12px;}
+.app-stat{font-size:11px;color:var(--text3);}
+.app-stat span{color:var(--text2);font-weight:500;}
+.watt-bar{height:3px;border-radius:2px;margin-top:6px;background:var(--surface3);overflow:hidden;}
+.watt-fill{height:3px;border-radius:2px;transition:width 0.4s;}
+
+.sim-ctrl{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;}
+.sim-ctrl-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.sim-ctrl-label{font-size:12px;color:var(--text2);}
+.sim-ctrl-val{font-size:13px;font-weight:700;color:var(--accent);}
+input[type=range]{width:100%;accent-color:var(--accent);margin:4px 0;}
+.btn{width:100%;padding:9px;border-radius:var(--radius-sm);border:none;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:0.3px;transition:opacity 0.15s;}
+.btn:hover{opacity:0.85;}
+.btn-start{background:var(--accent);color:#0a2240;margin-bottom:6px;}
+.btn-reset{background:var(--surface3);color:var(--text2);}
+
+/* MAIN AREA */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.mc{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+.mc-label{font-size:10px;text-transform:uppercase;letter-spacing:0.7px;color:var(--text3);margin-bottom:5px;}
+.mc-val{font-size:24px;font-weight:700;color:var(--text);line-height:1;}
+.mc-unit{font-size:13px;font-weight:400;color:var(--text3);margin-left:2px;}
+.mc-delta{font-size:11px;margin-top:5px;color:var(--text3);}
+.mc-delta.live{color:var(--accent);}
+
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+.chart-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3);margin-bottom:14px;}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px;}
+
+/* EVENT LOG */
+.log{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;}
+.log-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text3);margin-bottom:12px;}
+.log-body{font-family:'SF Mono','Fira Code',monospace;font-size:11.5px;max-height:150px;overflow-y:auto;}
+.log-entry{padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:10px;align-items:flex-start;}
+.log-time{color:var(--text3);flex-shrink:0;width:55px;}
+.log-msg{color:var(--text2);}
+.log-on{color:var(--accent);}
+.log-off{color:var(--red);}
+.log-info{color:var(--blue);}
+
+/* CLASSIFIER PANEL */
+.classifier{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px;}
+.clf-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.clf-label{font-size:12px;color:var(--text2);width:110px;flex-shrink:0;}
+.clf-bar-track{flex:1;background:var(--surface2);border-radius:3px;height:8px;overflow:hidden;}
+.clf-bar-fill{height:8px;border-radius:3px;transition:width 0.6s;}
+.clf-pct{font-size:12px;font-weight:700;width:36px;text-align:right;flex-shrink:0;}
+.clf-state{font-size:10px;padding:2px 7px;border-radius:8px;flex-shrink:0;}
+.clf-on{background:rgba(0,180,120,0.15);color:var(--accent);}
+.clf-off{background:var(--surface3);color:var(--text3);}
+
+.footer{text-align:center;font-size:11px;color:var(--text3);padding:20px 0;border-top:1px solid var(--border);margin-top:8px;}
+.footer a{color:var(--text2);text-decoration:none;}
+
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr;}
+  .sidebar{border-right:none;border-bottom:1px solid var(--border);}
+  .metrics{grid-template-columns:1fr 1fr;}
+  .grid2{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="pulse"></div>
+    <div>
+      <div class="topbar-title">NILM Simulation — Smart Energy Monitor</div>
+      <div class="topbar-sub">Non-Intrusive Load Monitoring · Naive Bayes Classifier · Real-time Disaggregation</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <span class="badge badge-green" id="sim-status-badge">IDLE</span>
+    <span class="badge badge-blue">ICRA 2026</span>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Appliances</div>
+
+      <div class="appliance-item" id="app-hvac">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#378add;"></div><div class="app-name">HVAC</div></div>
+          <div class="toggle off" id="tog-hvac" onclick="toggleApp('hvac')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-hvac">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-hvac">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-hvac" style="width:0%;background:#378add;"></div></div>
+      </div>
+
+      <div class="appliance-item" id="app-wh">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#1d9e75;"></div><div class="app-name">Water heater</div></div>
+          <div class="toggle off" id="tog-wh" onclick="toggleApp('wh')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-wh">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-wh">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-wh" style="width:0%;background:#1d9e75;"></div></div>
+      </div>
+
+      <div class="appliance-item" id="app-fridge">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#ba7517;"></div><div class="app-name">Refrigerator</div></div>
+          <div class="toggle off" id="tog-fridge" onclick="toggleApp('fridge')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-fridge">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-fridge">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-fridge" style="width:0%;background:#ba7517;"></div></div>
+      </div>
+
+      <div class="appliance-item" id="app-washer">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#993556;"></div><div class="app-name">Washer/dryer</div></div>
+          <div class="toggle off" id="tog-washer" onclick="toggleApp('washer')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-washer">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-washer">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-washer" style="width:0%;background:#993556;"></div></div>
+      </div>
+
+      <div class="appliance-item" id="app-light">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#534ab7;"></div><div class="app-name">Lighting</div></div>
+          <div class="toggle off" id="tog-light" onclick="toggleApp('light')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-light">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-light">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-light" style="width:0%;background:#534ab7;"></div></div>
+      </div>
+
+      <div class="appliance-item" id="app-ev">
+        <div class="app-header">
+          <div class="app-name-row"><div class="app-dot" style="background:#993c1d;"></div><div class="app-name">EV charger</div></div>
+          <div class="toggle off" id="tog-ev" onclick="toggleApp('ev')"></div>
+        </div>
+        <div class="app-stats">
+          <div class="app-stat">Draw: <span id="w-ev">0</span> W</div>
+          <div class="app-stat">Today: <span id="e-ev">0.0</span> kWh</div>
+        </div>
+        <div class="watt-bar"><div class="watt-fill" id="wb-ev" style="width:0%;background:#993c1d;"></div></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Simulation controls</div>
+      <div class="sim-ctrl">
+        <div class="sim-ctrl-row">
+          <div class="sim-ctrl-label">Noise level</div>
+          <div class="sim-ctrl-val" id="noise-val">5%</div>
+        </div>
+        <input type="range" id="noise-slider" min="0" max="30" value="5" step="1">
+
+        <div class="sim-ctrl-row" style="margin-top:10px;">
+          <div class="sim-ctrl-label">Temp (°C)</div>
+          <div class="sim-ctrl-val" id="temp-val">28°C</div>
+        </div>
+        <input type="range" id="temp-slider" min="15" max="45" value="28" step="1">
+
+        <div class="sim-ctrl-row" style="margin-top:10px;">
+          <div class="sim-ctrl-label">Speed</div>
+          <div class="sim-ctrl-val" id="speed-val">1×</div>
+        </div>
+        <input type="range" id="speed-slider" min="1" max="5" value="1" step="1">
+
+        <div style="margin-top:14px;">
+          <button class="btn btn-start" id="run-btn" onclick="toggleSim()">&#9654; Start simulation</button>
+          <button class="btn btn-reset" onclick="resetSim()">&#8635; Reset</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+
+    <div class="metrics">
+      <div class="mc">
+        <div class="mc-label">Aggregate load</div>
+        <div class="mc-val" id="m-total">0<span class="mc-unit">W</span></div>
+        <div class="mc-delta live" id="m-total-d">— idle —</div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">Total energy</div>
+        <div class="mc-val" id="m-energy">0.00<span class="mc-unit">kWh</span></div>
+        <div class="mc-delta" id="m-energy-d">simulation paused</div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">Active appliances</div>
+        <div class="mc-val" id="m-active">0<span class="mc-unit">/6</span></div>
+        <div class="mc-delta" id="m-active-d">none detected</div>
+      </div>
+      <div class="mc">
+        <div class="mc-label">Classifier accuracy</div>
+        <div class="mc-val" id="m-acc">—<span class="mc-unit">%</span></div>
+        <div class="mc-delta live" id="m-acc-d">not running</div>
+      </div>
+    </div>
+
+    <!-- Aggregate power chart -->
+    <div class="chart-card">
+      <div class="chart-title">Aggregate mains current (A) — real-time</div>
+      <div style="position:relative;width:100%;height:180px;">
+        <canvas id="currentChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <!-- Real & reactive power -->
+      <div class="chart-card" style="margin:0;">
+        <div class="chart-title">Active (P) vs Reactive (Q) power — W / VAR</div>
+        <div style="position:relative;width:100%;height:180px;">
+          <canvas id="pqChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Disaggregation pie -->
+      <div class="chart-card" style="margin:0;">
+        <div class="chart-title">Live load disaggregation (%)</div>
+        <div style="position:relative;width:100%;height:180px;">
+          <canvas id="disaggChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Naive Bayes Classifier -->
+    <div class="classifier" style="margin-top:16px;">
+      <div class="chart-title">Naive Bayes classifier — posterior probability per appliance</div>
+      <div id="clf-rows">
+        <div class="clf-row"><div class="clf-label">HVAC</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-hvac" style="width:0%;background:#378add;"></div></div><div class="clf-pct" id="cp-hvac" style="color:#378add;">0%</div><div class="clf-state clf-off" id="cs-hvac">OFF</div></div>
+        <div class="clf-row"><div class="clf-label">Water heater</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-wh" style="width:0%;background:#1d9e75;"></div></div><div class="clf-pct" id="cp-wh" style="color:#1d9e75;">0%</div><div class="clf-state clf-off" id="cs-wh">OFF</div></div>
+        <div class="clf-row"><div class="clf-label">Refrigerator</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-fridge" style="width:0%;background:#ba7517;"></div></div><div class="clf-pct" id="cp-fridge" style="color:#ba7517;">0%</div><div class="clf-state clf-off" id="cs-fridge">OFF</div></div>
+        <div class="clf-row"><div class="clf-label">Washer/dryer</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-washer" style="width:0%;background:#993556;"></div></div><div class="clf-pct" id="cp-washer" style="color:#993556;">0%</div><div class="clf-state clf-off" id="cs-washer">OFF</div></div>
+        <div class="clf-row"><div class="clf-label">Lighting</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-light" style="width:0%;background:#534ab7;"></div></div><div class="clf-pct" id="cp-light" style="color:#534ab7;">0%</div><div class="clf-state clf-off" id="cs-light">OFF</div></div>
+        <div class="clf-row"><div class="clf-label">EV charger</div><div class="clf-bar-track"><div class="clf-bar-fill" id="clf-ev" style="width:0%;background:#993c1d;"></div></div><div class="clf-pct" id="cp-ev" style="color:#993c1d;">0%</div><div class="clf-state clf-off" id="cs-ev">OFF</div></div>
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="log" style="margin-top:16px;">
+      <div class="log-title">System event log</div>
+      <div class="log-body" id="log-body">
+        <div class="log-entry"><div class="log-time">00:00:00</div><div class="log-msg log-info">System initialised. Waiting for simulation start...</div></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      Smart Energy Monitor — NILM Simulation &nbsp;|&nbsp;
+      Dataset: <a href="https://www.kaggle.com/datasets/mexwell/smart-home-energy-consumption" target="_blank">mexwell/smart-home-energy-consumption</a> &nbsp;|&nbsp;
+      <a href="https://github.com/mzunnurainhussain/smart-energy-monitor" target="_blank">github.com/mzunnurainhussain</a> &nbsp;|&nbsp;
+      M. Zunnurain Hussain · IEEE #92687282
+    </div>
+  </div>
+</div>
+
+<script>
+const APPS = {
+  hvac:   { name:'HVAC',         watts:2400, maxW:3000, color:'#378add', rms:10.4, pf:0.92 },
+  wh:     { name:'Water heater', watts:1800, maxW:3000, color:'#1d9e75', rms:7.8,  pf:0.99 },
+  fridge: { name:'Refrigerator', watts:150,  maxW:3000, color:'#ba7517', rms:0.65, pf:0.85 },
+  washer: { name:'Washer/dryer', watts:900,  maxW:3000, color:'#993556', rms:3.9,  pf:0.88 },
+  light:  { name:'Lighting',     watts:80,   maxW:3000, color:'#534ab7', rms:0.35, pf:0.97 },
+  ev:     { name:'EV charger',   watts:7200, maxW:8000, color:'#993c1d', rms:31.3, pf:0.98 },
+};
+
+const state = { on:{hvac:false,wh:false,fridge:false,washer:false,light:false,ev:false}, running:false, tick:0, energy:{}, correctPreds:0, totalPreds:0 };
+Object.keys(APPS).forEach(k => state.energy[k] = 0);
+
+let simInterval = null;
+const MAX_PTS = 60;
+const currentData = [], pData = [], qData = [], labels = [];
+
+// --- Charts ---
+const cCtx = document.getElementById('currentChart').getContext('2d');
+const currentChart = new Chart(cCtx, {
+  type:'line',
+  data:{ labels, datasets:[
+    { label:'Aggregate (A)', data:currentData, borderColor:'#00ffa3', backgroundColor:'rgba(0,255,163,0.05)', borderWidth:1.5, pointRadius:0, tension:0.3, fill:true }
+  ]},
+  options:{ responsive:true, maintainAspectRatio:false, animation:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#484f58',font:{size:10},maxTicksLimit:8} },
+      y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#484f58',font:{size:10},callback:v=>v.toFixed(1)+' A'}, beginAtZero:true }
+    }
+  }
+});
+
+const pqCtx = document.getElementById('pqChart').getContext('2d');
+const pqChart = new Chart(pqCtx, {
+  type:'line',
+  data:{ labels, datasets:[
+    { label:'Active P (W)',   data:pData, borderColor:'#e24b4a', backgroundColor:'transparent', borderWidth:1.5, pointRadius:0, tension:0.3 },
+    { label:'Reactive Q (VAR)', data:qData, borderColor:'#378add', backgroundColor:'transparent', borderWidth:1.5, borderDash:[4,3], pointRadius:0, tension:0.3 }
+  ]},
+  options:{ responsive:true, maintainAspectRatio:false, animation:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      x:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#484f58',font:{size:10},maxTicksLimit:8} },
+      y:{ grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#484f58',font:{size:10}} }
+    }
+  }
+});
+
+const dCtx = document.getElementById('disaggChart').getContext('2d');
+const disaggChart = new Chart(dCtx, {
+  type:'doughnut',
+  data:{
+    labels: Object.values(APPS).map(a=>a.name),
+    datasets:[{ data:[0,0,0,0,0,0], backgroundColor:Object.values(APPS).map(a=>a.color), borderWidth:2, borderColor:'transparent' }]
+  },
+  options:{ responsive:true, maintainAspectRatio:false, cutout:'60%', animation:{duration:300},
+    plugins:{ legend:{ display:true, position:'right', labels:{ color:'#8b949e', font:{size:10}, boxWidth:8, padding:8 } } }
+  }
+});
+
+// --- Helpers ---
+function noise(pct){ return 1 + (Math.random()-0.5)*2*(pct/100); }
+function nowStr(){ const d=new Date(); return [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':'); }
+
+function addLog(msg, cls='log-info'){
+  const el = document.createElement('div');
+  el.className = 'log-entry';
+  el.innerHTML = `<div class="log-time">${nowStr()}</div><div class="log-msg ${cls}">${msg}</div>`;
+  const body = document.getElementById('log-body');
+  body.prepend(el);
+  while(body.children.length > 80) body.removeChild(body.lastChild);
+}
+
+function toggleApp(id){
+  if(!state.running) return;
+  state.on[id] = !state.on[id];
+  const tog = document.getElementById('tog-'+id);
+  const item = document.getElementById('app-'+id);
+  tog.className = 'toggle ' + (state.on[id]?'on':'off');
+  item.className = 'appliance-item ' + (state.on[id]?'active-item':'');
+  addLog(`${APPS[id].name} switched ${state.on[id]?'ON → detecting load change':'OFF → ΔI registered'}`, state.on[id]?'log-on':'log-off');
+}
+
+function toggleSim(){
+  if(!state.running){ startSim(); } else { pauseSim(); }
+}
+
+function startSim(){
+  state.running = true;
+  document.getElementById('run-btn').innerHTML = '&#9646;&#9646; Pause simulation';
+  document.getElementById('run-btn').style.background = '#e24b4a';
+  document.getElementById('sim-status-badge').textContent = 'LIVE';
+  document.getElementById('sim-status-badge').style.background = 'rgba(0,180,120,0.25)';
+  document.getElementById('sim-status-badge').style.color = '#00ffa3';
+  addLog('Simulation started. ACS712 sampling at 50 Hz.', 'log-info');
+  addLog('Zero Cross Detector armed. Naive Bayes model loaded.', 'log-info');
+
+  const speedMap = [1,2,3,5,8];
+  function getSpeed(){ return speedMap[parseInt(document.getElementById('speed-slider').value)-1] || 1; }
+
+  function tick(){
+    if(!state.running) return;
+    const noise_pct = parseInt(document.getElementById('noise-slider').value);
+    state.tick++;
+
+    let totalW = 0, totalQ = 0, totalI = 0;
+    const disaggVals = [];
+
+    Object.keys(APPS).forEach(k => {
+      const a = APPS[k];
+      const on = state.on[k];
+      const w = on ? a.watts * noise(noise_pct) : 0;
+      const q = on ? w * Math.tan(Math.acos(a.pf)) * noise(noise_pct) : 0;
+      const i = on ? a.rms * noise(noise_pct) : 0;
+
+      totalW += w; totalQ += q; totalI += i;
+
+      const dkwh = (w / 1000) / 3600;
+      if(on) state.energy[k] += dkwh;
+
+      document.getElementById('w-'+k).textContent = Math.round(w);
+      document.getElementById('e-'+k).textContent = state.energy[k].toFixed(3);
+      document.getElementById('wb-'+k).style.width = (Math.min(w / a.maxW, 1)*100).toFixed(1)+'%';
+      disaggVals.push(on ? Math.round(w) : 0);
+    });
+
+    // Naive Bayes posterior simulation
+    state.totalPreds++;
+    let correct = true;
+    Object.keys(APPS).forEach((k,i) => {
+      const on = state.on[k];
+      const base = on ? 75 + Math.random()*22 : 2 + Math.random()*15;
+      const pct = Math.round(Math.min(base + noise(noise_pct)*3, 99));
+      const detected = pct > 50;
+      if(detected !== on) correct = false;
+      document.getElementById('clf-'+k).style.width = pct+'%';
+      document.getElementById('cp-'+k).textContent = pct+'%';
+      const stEl = document.getElementById('cs-'+k);
+      stEl.textContent = detected ? 'ON' : 'OFF';
+      stEl.className = 'clf-state ' + (detected ? 'clf-on' : 'clf-off');
+    });
+    if(correct) state.correctPreds++;
+    const acc = state.totalPreds > 0 ? Math.round((state.correctPreds/state.totalPreds)*100) : 0;
+
+    // Update time-series
+    const t = state.tick;
+    if(labels.length >= MAX_PTS){ labels.shift(); currentData.shift(); pData.shift(); qData.shift(); }
+    labels.push(t+'s');
+    currentData.push(parseFloat(totalI.toFixed(2)));
+    pData.push(Math.round(totalW));
+    qData.push(Math.round(totalQ));
+
+    currentChart.update('none');
+    pqChart.update('none');
+
+    disaggChart.data.datasets[0].data = disaggVals;
+    disaggChart.update();
+
+    const activeCount = Object.values(state.on).filter(Boolean).length;
+    const totalEnergy = Object.values(state.energy).reduce((a,b)=>a+b,0);
+
+    document.getElementById('m-total').innerHTML = Math.round(totalW)+'<span class="mc-unit">W</span>';
+    document.getElementById('m-total-d').textContent = totalI.toFixed(2)+' A aggregate';
+    document.getElementById('m-energy').innerHTML = totalEnergy.toFixed(4)+'<span class="mc-unit">kWh</span>';
+    document.getElementById('m-energy-d').textContent = 'since simulation start';
+    document.getElementById('m-active').innerHTML = activeCount+'<span class="mc-unit">/6</span>';
+    document.getElementById('m-active-d').textContent = activeCount > 0 ? 'loads disaggregated' : 'idle — toggle appliances';
+    document.getElementById('m-acc').innerHTML = acc+'<span class="mc-unit">%</span>';
+    document.getElementById('m-acc-d').textContent = state.totalPreds + ' predictions made';
+
+    const delay = Math.max(80, 1000 / getSpeed());
+    simInterval = setTimeout(tick, delay);
+  }
+  tick();
+}
+
+function pauseSim(){
+  state.running = false;
+  if(simInterval) clearTimeout(simInterval);
+  document.getElementById('run-btn').innerHTML = '&#9654; Resume simulation';
+  document.getElementById('run-btn').style.background = '#00b478';
+  document.getElementById('sim-status-badge').textContent = 'PAUSED';
+  document.getElementById('sim-status-badge').style.color = '#ba7517';
+  addLog('Simulation paused.', 'log-info');
+}
+
+function resetSim(){
+  pauseSim();
+  state.tick = 0; state.correctPreds = 0; state.totalPreds = 0;
+  Object.keys(APPS).forEach(k => {
+    state.on[k] = false; state.energy[k] = 0;
+    document.getElementById('tog-'+k).className='toggle off';
+    document.getElementById('app-'+k).className='appliance-item';
+    document.getElementById('w-'+k).textContent='0';
+    document.getElementById('e-'+k).textContent='0.000';
+    document.getElementById('wb-'+k).style.width='0%';
+    document.getElementById('clf-'+k).style.width='0%';
+    document.getElementById('cp-'+k).textContent='0%';
+    document.getElementById('cs-'+k).textContent='OFF';
+    document.getElementById('cs-'+k).className='clf-state clf-off';
+  });
+  labels.length=0; currentData.length=0; pData.length=0; qData.length=0;
+  currentChart.update(); pqChart.update();
+  disaggChart.data.datasets[0].data=[0,0,0,0,0,0]; disaggChart.update();
+  document.getElementById('m-total').innerHTML='0<span class="mc-unit">W</span>';
+  document.getElementById('m-energy').innerHTML='0.00<span class="mc-unit">kWh</span>';
+  document.getElementById('m-active').innerHTML='0<span class="mc-unit">/6</span>';
+  document.getElementById('m-acc').innerHTML='—<span class="mc-unit">%</span>';
+  document.getElementById('m-active-d').textContent='none detected';
+  document.getElementById('m-acc-d').textContent='not running';
+  document.getElementById('m-energy-d').textContent='simulation paused';
+  document.getElementById('m-total-d').textContent='— idle —';
+  document.getElementById('sim-status-badge').textContent='IDLE';
+  document.getElementById('sim-status-badge').style.color='';
+  document.getElementById('run-btn').innerHTML='&#9654; Start simulation';
+  document.getElementById('run-btn').style.background='#00b478';
+  document.getElementById('log-body').innerHTML='<div class="log-entry"><div class="log-time">00:00:00</div><div class="log-msg log-info">System reset. Ready.</div></div>';
+}
+
+document.getElementById('noise-slider').addEventListener('input', function(){ document.getElementById('noise-val').textContent=this.value+'%'; });
+document.getElementById('temp-slider').addEventListener('input', function(){ document.getElementById('temp-val').textContent=this.value+'°C'; });
+document.getElementById('speed-slider').addEventListener('input', function(){ const m=[1,2,3,5,8]; document.getElementById('speed-val').textContent=m[this.value-1]+'×'; });
+</script>
+</body>
+</html>
